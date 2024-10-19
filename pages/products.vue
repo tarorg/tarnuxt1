@@ -130,6 +130,10 @@ const updateStock = async () => {
     isUpdating.value = false
   }
 }
+
+const navigateToAddProduct = () => {
+  navigateTo('/add-product')
+}
 </script>
 
 <template>
@@ -194,7 +198,10 @@ const updateStock = async () => {
 
     <div class="h-full flex-1 flex-col space-y-8 p-8">
       <div class="flex justify-end items-center">
-        <Button class="bg-white text-black border border-gray-300 hover:bg-gray-100">
+        <Button 
+          class="bg-white text-black border border-gray-300 hover:bg-gray-100"
+          @click="navigateToAddProduct"
+        >
           <Plus class="mr-2 h-4 w-4" /> Add Product
         </Button>
       </div>
