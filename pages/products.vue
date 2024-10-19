@@ -11,6 +11,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer'
+import {
   Package,
   Square,
   Triangle,
@@ -23,11 +33,17 @@ import {
   Users,
   BarChart,
   Plus,
+  Minus,
 } from 'lucide-vue-next'
 
 const products = ref([])
 const searchQuery = ref('')
 const menuSearchQuery = ref('')
+const selectedProduct = ref(null)
+const newStock = ref(0)
+const isUpdating = ref(false)
+const errorMessage = ref('')
+const isDrawerOpen = ref(false)
 
 const menuItems = [
   { icon: User, label: 'Profile' },
@@ -64,6 +80,56 @@ onMounted(async () => {
     console.error('Error fetching products:', error)
   }
 })
+
+const openUpdateStockDrawer = (product) => {
+  selectedProduct.value = product
+  newStock.value = product.qty
+  isDrawerOpen.value = true
+}
+
+const updateStock = async () => {
+  if (!selectedProduct.value) return
+
+  isUpdating.value = true
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch('/api/updateStock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sku: selectedProduct.value.sku,
+        newStock: Number(newStock.value),
+      }),
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      selectedProduct.value.qty = newStock.value
+      // Update the product in the products array
+      const index = products.value.findIndex(p => p.sku === selectedProduct.value.sku)
+      if (index !== -1) {
+        products.value[index] = { ...selectedProduct.value }
+      }
+      // Close the drawer after successful update
+      isDrawerOpen.value = false
+    } else {
+      console.error('Failed to update stock:', result.message)
+      errorMessage.value = result.message || 'Failed to update stock'
+      if (result.error) {
+        console.error('Error details:', result.error)
+      }
+    }
+  } catch (error: any) {
+    console.error('Error updating stock:', error)
+    errorMessage.value = error.message || 'An unexpected error occurred'
+  } finally {
+    isUpdating.value = false
+  }
+}
 </script>
 
 <template>
@@ -137,12 +203,71 @@ onMounted(async () => {
           <TableRow>
             <TableHead>SKU</TableHead>
             <TableHead>Stock</TableHead>
+            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-for="product in filteredProducts" :key="product.id">
             <TableCell>{{ product.sku }}</TableCell>
             <TableCell>{{ product.qty }}</TableCell>
+            <TableCell>
+              <Drawer v-model:open="isDrawerOpen">
+                <DrawerTrigger as-child>
+                  <Button variant="outline" size="sm" @click="openUpdateStockDrawer(product)">
+                    Update Stock
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <div class="mx-auto w-full max-w-sm">
+                    <DrawerHeader>
+                      <DrawerTitle>Update Stock</DrawerTitle>
+                      <DrawerDescription>Adjust the stock quantity for {{ selectedProduct?.sku }}</DrawerDescription>
+                    </DrawerHeader>
+                    <div class="p-4 pb-0">
+                      <div class="flex items-center justify-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0 rounded-full"
+                          @click="newStock--"
+                        >
+                          <Minus class="h-4 w-4" />
+                          <span class="sr-only">Decrease</span>
+                        </Button>
+                        <div class="flex-1 text-center">
+                          <div class="text-7xl font-bold tracking-tighter">
+                            {{ newStock }}
+                          </div>
+                          <div class="text-[0.70rem] uppercase text-muted-foreground">
+                            Current Stock
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0 rounded-full"
+                          @click="newStock++"
+                        >
+                          <Plus class="h-4 w-4" />
+                          <span class="sr-only">Increase</span>
+                        </Button>
+                      </div>
+                    </div>
+                    <DrawerFooter>
+                      <Button @click="updateStock" :disabled="isUpdating">
+                        {{ isUpdating ? 'Updating...' : 'Update Stock' }}
+                      </Button>
+                      <DrawerClose as-child>
+                        <Button variant="outline">
+                          Cancel
+                        </Button>
+                      </DrawerClose>
+                      <p v-if="errorMessage" class="text-red-500 mt-2">{{ errorMessage }}</p>
+                    </DrawerFooter>
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>
