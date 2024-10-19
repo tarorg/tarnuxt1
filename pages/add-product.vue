@@ -177,23 +177,23 @@ const instanceCombinations = computed(() => {
   return generateCombinations(visibleAttributes.value)
 })
 
-// Modify the generateSKU function to include instance type
-const generateSKU = (combination: string[], instanceType: string): string => {
-  const prefix = instanceType.substring(0, 3).toUpperCase();
+// Modify the generateSKU function to remove spaces from the product name
+const generateSKU = (combination: string[]): string => {
+  const namePrefix = coreProductData.value.name.replace(/\s+/g, '').substring(0, 3).toUpperCase();
   const attributePart = combination.map(value => value.substring(0, 3).toUpperCase()).join('-');
-  return `${prefix}-${attributePart}`;
+  return `${namePrefix}-${attributePart}`;
 }
 
-// Modify the instanceData ref to include all instance types
+// Modify the instanceData ref to remove the instance type
 const instanceData = ref<{ [key: string]: { generatedSku: string; stock: number } }>({})
 
 // Update the watch function for instanceCombinations
-watch([instanceCombinations, () => coreProductData.value.instance], ([newCombinations, instanceType]) => {
+watch([instanceCombinations, () => coreProductData.value.name], ([newCombinations, productName]) => {
   instanceData.value = {} // Reset instanceData
   newCombinations.forEach(combination => {
     const key = combination.join('-')
     instanceData.value[key] = { 
-      generatedSku: generateSKU(combination, instanceType),
+      generatedSku: generateSKU(combination),
       stock: 0 
     }
   })
