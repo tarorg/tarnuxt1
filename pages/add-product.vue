@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const goBack = () => {
   navigateTo('/products')
@@ -44,12 +46,28 @@ const updateField = (field: keyof typeof productData.value, value: string) => {
   productData.value[field] = value
 }
 
-const updateAttribute = (index: number, key: 'type' | 'value', value: string) => {
+const selectedValues = ref<{ [key: number]: string[] }>({})
+
+const toggleValue = (index: number, value: string) => {
+  if (!selectedValues.value[index]) {
+    selectedValues.value[index] = []
+  }
+  const valueIndex = selectedValues.value[index].indexOf(value)
+  if (valueIndex === -1) {
+    selectedValues.value[index].push(value)
+  } else {
+    selectedValues.value[index].splice(valueIndex, 1)
+  }
+  updateAttribute(index, 'value', selectedValues.value[index].join(', '))
+}
+
+const updateAttribute = (index: number, key: 'type' | 'value', value: string | string[]) => {
   console.log(`Updating attribute ${index}, ${key}: ${value}`)
   if (key === 'type') {
-    attributes.value[index] = { ...attributes.value[index], type: value, value: '' }
+    attributes.value[index] = { ...attributes.value[index], type: value as string, value: '' }
+    selectedValues.value[index] = []
   } else {
-    attributes.value[index] = { ...attributes.value[index], value }
+    attributes.value[index] = { ...attributes.value[index], value: Array.isArray(value) ? value.join(', ') : value }
   }
   attributes.value = [...attributes.value] // Trigger a re-render
   console.log('Updated attributes:', JSON.stringify(attributes.value))
@@ -123,6 +141,8 @@ const availableAttributeTypes = computed(() => {
 watch(attributes, (newValue) => {
   console.log('Attributes changed:', JSON.stringify(newValue))
 }, { deep: true })
+
+const isVariantInstance = computed(() => productData.value.instance === 'Variants')
 </script>
 
 <template>
@@ -223,7 +243,12 @@ watch(attributes, (newValue) => {
                 </Select>
               </TableCell>
               <TableCell class="p-0">
-                <Select :model-value="attribute.value" @update:model-value="(value) => updateAttribute(index, 'value', value)" :disabled="!attribute.type">
+                <Select 
+                  v-if="!isVariantInstance" 
+                  :model-value="attribute.value" 
+                  @update:model-value="(value) => updateAttribute(index, 'value', value)" 
+                  :disabled="!attribute.type"
+                >
                   <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
                     <SelectValue :placeholder="attribute.value || 'Select Value'" />
                   </SelectTrigger>
@@ -235,6 +260,33 @@ watch(attributes, (newValue) => {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <div v-else class="relative">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        :class="{'border-primary': selectedValues[index]?.length > 0}"
+                        class="w-full justify-start h-[32px]"
+                      >
+                        {{ selectedValues[index]?.length ? selectedValues[index].join(', ') : 'Select Values' }}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent class="w-[200px] p-4">
+                      <div class="max-h-[200px] overflow-y-auto">
+                        <div v-for="attrValue in getAttributeValues(attribute.type)" :key="attrValue" class="flex items-center space-x-2 mb-2">
+                          <Checkbox
+                            :id="`${index}-${attrValue}`"
+                            :checked="selectedValues[index]?.includes(attrValue)"
+                            @update:checked="() => toggleValue(index, attrValue)"
+                          />
+                          <label :for="`${index}-${attrValue}`" class="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            {{ attrValue }}
+                          </label>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>
