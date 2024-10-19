@@ -13,6 +13,9 @@ import {
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer'
+import { ref as vueRef } from 'vue'
 
 const goBack = () => {
   navigateTo('/products')
@@ -43,7 +46,17 @@ onMounted(async () => {
   attributeTypes.value = attributeData.attributes
 })
 
+const resetAttributesAndInstances = () => {
+  attributes.value = Array(5).fill(null).map(() => ({ type: '', value: '' }))
+  selectedValues.value = {}
+  instanceData.value = {}
+  coreProductData.value.options = '1'
+}
+
 const updateCoreField = (field: keyof typeof coreProductData.value, value: string) => {
+  if (field === 'instance' && value !== coreProductData.value.instance) {
+    resetAttributesAndInstances()
+  }
   coreProductData.value[field] = value
 }
 
@@ -144,6 +157,105 @@ watch(attributes, (newValue) => {
 }, { deep: true })
 
 const isVariantInstance = computed(() => coreProductData.value.instance === 'Variants')
+
+// Function to generate all possible combinations of attribute values
+const generateCombinations = (attributes: { type: string; value: string }[]): string[][] => {
+  const values = attributes
+    .filter(attr => attr.type && attr.value)
+    .map(attr => attr.value.split(', '))
+  
+  if (values.length === 0) return [['Default']];
+
+  const combine = (acc: string[][], curr: string[]): string[][] => 
+    acc.length ? acc.flatMap(x => curr.map(y => [...x, y])) : curr.map(y => [y])
+
+  return values.reduce(combine, [])
+}
+
+// Modify the instanceCombinations computed property
+const instanceCombinations = computed(() => {
+  return generateCombinations(visibleAttributes.value)
+})
+
+// Modify the generateSKU function to include instance type
+const generateSKU = (combination: string[], instanceType: string): string => {
+  const prefix = instanceType.substring(0, 3).toUpperCase();
+  const attributePart = combination.map(value => value.substring(0, 3).toUpperCase()).join('-');
+  return `${prefix}-${attributePart}`;
+}
+
+// Modify the instanceData ref to include all instance types
+const instanceData = ref<{ [key: string]: { generatedSku: string; stock: number } }>({})
+
+// Update the watch function for instanceCombinations
+watch([instanceCombinations, () => coreProductData.value.instance], ([newCombinations, instanceType]) => {
+  instanceData.value = {} // Reset instanceData
+  newCombinations.forEach(combination => {
+    const key = combination.join('-')
+    instanceData.value[key] = { 
+      generatedSku: generateSKU(combination, instanceType),
+      stock: 0 
+    }
+  })
+}, { immediate: true })
+
+// Modify the updateInstanceData function
+const updateInstanceData = (combination: string[], value: number) => {
+  const key = combination.join('-')
+  instanceData.value[key] = { 
+    ...instanceData.value[key], 
+    stock: value 
+  }
+}
+
+// Compute total number of possible combinations
+const totalCombinations = computed(() => {
+  return visibleAttributes.value
+    .filter(attr => attr.type && attr.value)
+    .reduce((total, attr) => total * attr.value.split(', ').length, 1)
+})
+
+const selectedMedia = vueRef(null)
+const isDrawerOpen = vueRef(false)
+
+const openMediaDrawer = (file) => {
+  selectedMedia.value = file
+  isDrawerOpen.value = true
+}
+
+const closeMediaDrawer = () => {
+  selectedMedia.value = null
+  isDrawerOpen.value = false
+}
+
+const removeMedia = async (fileToRemove) => {
+  try {
+    console.log('Attempting to remove file:', fileToRemove.url)
+    const response = await fetch('/api/removeMedia', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileUrl: fileToRemove.url }),
+    })
+
+    console.log('Response status:', response.status)
+    const result = await response.json()
+    console.log('Response body:', result)
+
+    if (result.success) {
+      console.log('File removed successfully')
+      uploadedFiles.value = uploadedFiles.value.filter(file => file.url !== fileToRemove.url)
+      closeMediaDrawer()
+    } else {
+      console.error('Failed to remove file from Cloudflare R2:', result.message, 'Error details:', result.error)
+      // You might want to show an error message to the user here
+    }
+  } catch (error) {
+    console.error('Error removing file:', error)
+    // You might want to show an error message to the user here
+  }
+}
 </script>
 
 <template>
@@ -170,7 +282,7 @@ const isVariantInstance = computed(() => coreProductData.value.instance === 'Var
 
     <main class="flex-1 p-6">
       <div class="max-w-3xl mx-auto">
-        <Table class="core-table">
+        <Table class="core-table mb-6">
           <TableBody>
             <TableRow v-for="(value, key) in coreProductData" :key="key" class="h-[32px]">
               <TableCell class="font-medium border-r w-1/4">{{ key.charAt(0).toUpperCase() + key.slice(1) }}</TableCell>
@@ -207,12 +319,9 @@ const isVariantInstance = computed(() => coreProductData.value.instance === 'Var
                       <Upload class="h-5 w-5" />
                     </label>
                     <div class="flex-1 flex overflow-x-auto ml-2">
-                      <div v-for="(file, index) in uploadedFiles" :key="index" class="relative mr-2">
+                      <div v-for="(file, index) in uploadedFiles" :key="index" class="relative mr-2 cursor-pointer" @click="openMediaDrawer(file)">
                         <img v-if="file.type === 'image'" :src="file.url" class="h-6 w-6 object-cover" />
                         <Video v-else class="h-6 w-6" />
-                        <button @click="removeFile(index)" class="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
-                          <X class="h-2 w-2 text-white" />
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -292,8 +401,54 @@ const isVariantInstance = computed(() => coreProductData.value.instance === 'Var
             </TableRow>
           </TableBody>
         </Table>
+
+        <!-- Instances Table -->
+        <Table class="instances-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead class="w-4/5">Generated SKU</TableHead>
+              <TableHead class="w-1/5">Stock</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="combination in instanceCombinations" :key="combination.join('-')">
+              <TableCell class="w-4/5">{{ instanceData[combination.join('-')]?.generatedSku }}</TableCell>
+              <TableCell class="w-1/5 p-0">
+                <div
+                  contenteditable="true"
+                  class="w-full h-full px-3 focus:outline-none notion-cell flex items-center"
+                  :placeholder="'Enter stock'"
+                  @input="(e) => updateInstanceData(combination, parseInt((e.target as HTMLDivElement).textContent || '0'))"
+                >{{ instanceData[combination.join('-')]?.stock }}</div>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+
+        <!-- Display total combinations -->
+        <div class="mt-4 text-sm text-gray-600">
+          Instances: {{ instanceCombinations.length }}
+        </div>
       </div>
     </main>
+
+    <!-- Media Drawer -->
+    <Drawer v-model:open="isDrawerOpen" @close="closeMediaDrawer">
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Media Preview</DrawerTitle>
+          <DrawerDescription>Expanded view of the selected media</DrawerDescription>
+        </DrawerHeader>
+        <div class="p-4 pb-0">
+          <img v-if="selectedMedia?.type === 'image'" :src="selectedMedia?.url" class="max-w-full h-auto" />
+          <video v-else-if="selectedMedia?.type === 'video'" :src="selectedMedia?.url" controls class="max-w-full h-auto"></video>
+        </div>
+        <DrawerFooter>
+          <Button @click="removeMedia(selectedMedia)" variant="destructive">Remove Media</Button>
+          <Button @click="closeMediaDrawer" variant="outline">Close</Button>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>
 
@@ -310,6 +465,7 @@ const isVariantInstance = computed(() => coreProductData.value.instance === 'Var
 
 .core-table td {
   border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
 }
 
 .core-table td:first-child {
@@ -364,4 +520,47 @@ const isVariantInstance = computed(() => coreProductData.value.instance === 'Var
 }
 
 /* ... (keep other existing styles) ... */
+
+.instances-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.instances-table th,
+.instances-table td {
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.instances-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  padding: 8px;
+}
+
+.instances-table td:first-child {
+  padding: 8px;
+}
+
+.notion-cell {
+  min-height: 32px;
+  line-height: 32px;
+}
+
+.notion-cell:focus {
+  background-color: #e8f0fe;
+}
+
+[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* ... (keep other existing styles) */
 </style>

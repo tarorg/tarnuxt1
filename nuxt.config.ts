@@ -25,10 +25,6 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    turso: {
-      databaseUrl: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    },
     r2: {
       region: process.env.R2_REGION,
       accountId: process.env.R2_ACCOUNT_ID,
