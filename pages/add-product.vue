@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, Upload, Video, X } from 'lucide-vue-next'
+import { ArrowLeft, Upload, Video, X, Save } from 'lucide-vue-next'
 import {
   Select,
   SelectContent,
@@ -18,7 +18,8 @@ const goBack = () => {
   navigateTo('/products')
 }
 
-const productData = ref({
+// Rename this to reflect the "core" concept
+const coreProductData = ref({
   name: '',
   category: '',
   medias: '',
@@ -42,8 +43,8 @@ onMounted(async () => {
   attributeTypes.value = attributeData.attributes
 })
 
-const updateField = (field: keyof typeof productData.value, value: string) => {
-  productData.value[field] = value
+const updateCoreField = (field: keyof typeof coreProductData.value, value: string) => {
+  coreProductData.value[field] = value
 }
 
 const selectedValues = ref<{ [key: number]: string[] }>({})
@@ -74,11 +75,11 @@ const updateAttribute = (index: number, key: 'type' | 'value', value: string | s
 }
 
 const changeOptions = (increment: boolean) => {
-  const currentValue = parseInt(productData.value.options)
+  const currentValue = parseInt(coreProductData.value.options)
   if (increment && currentValue < 5) {
-    productData.value.options = (currentValue + 1).toString()
+    coreProductData.value.options = (currentValue + 1).toString()
   } else if (!increment && currentValue > 1) {
-    productData.value.options = (currentValue - 1).toString()
+    coreProductData.value.options = (currentValue - 1).toString()
   }
 }
 
@@ -88,7 +89,7 @@ const getAttributeValues = (type: string) => {
 }
 
 const visibleAttributes = computed(() => {
-  return attributes.value.slice(0, parseInt(productData.value.options))
+  return attributes.value.slice(0, parseInt(coreProductData.value.options))
 })
 
 const uploadedFiles = ref<{ url: string; type: string }[]>([])
@@ -142,7 +143,7 @@ watch(attributes, (newValue) => {
   console.log('Attributes changed:', JSON.stringify(newValue))
 }, { deep: true })
 
-const isVariantInstance = computed(() => productData.value.instance === 'Variants')
+const isVariantInstance = computed(() => coreProductData.value.instance === 'Variants')
 </script>
 
 <template>
@@ -156,26 +157,26 @@ const isVariantInstance = computed(() => productData.value.instance === 'Variant
         <h1 class="text-sm font-semibold">Add Product</h1>
       </div>
       <div class="flex items-center space-x-2">
-        <Button @click="goBack" variant="outline">Cancel</Button>
-        <Button>Save Product</Button>
+        <Button @click="goBack" variant="ghost" size="icon">
+          <X class="h-5 w-5" />
+          <span class="sr-only">Cancel</span>
+        </Button>
+        <Button variant="ghost" size="icon">
+          <Save class="h-5 w-5" />
+          <span class="sr-only">Save Product</span>
+        </Button>
       </div>
     </header>
 
     <main class="flex-1 p-6">
       <div class="max-w-3xl mx-auto">
-        <Table class="notion-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead class="w-1/5 border-r">Property</TableHead>
-              <TableHead>Value</TableHead>
-            </TableRow>
-          </TableHeader>
+        <Table class="core-table">
           <TableBody>
-            <TableRow v-for="(value, key) in productData" :key="key" class="h-[32px]">
-              <TableCell class="font-medium border-r">{{ key.charAt(0).toUpperCase() + key.slice(1) }}</TableCell>
-              <TableCell class="p-0">
+            <TableRow v-for="(value, key) in coreProductData" :key="key" class="h-[32px]">
+              <TableCell class="font-medium border-r w-1/4">{{ key.charAt(0).toUpperCase() + key.slice(1) }}</TableCell>
+              <TableCell class="p-0 w-3/4">
                 <template v-if="key === 'category' || key === 'instance'">
-                  <Select @update:modelValue="updateField(key, $event)">
+                  <Select @update:modelValue="updateCoreField(key, $event)">
                     <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
                       <SelectValue :placeholder="`Select ${key}`" />
                     </SelectTrigger>
@@ -219,14 +220,14 @@ const isVariantInstance = computed(() => productData.value.instance === 'Variant
                 <div
                   v-else
                   contenteditable="true"
-                  class="w-full h-full px-3 focus:outline-none notion-cell flex items-center"
+                  class="w-full h-full px-3 focus:outline-none core-cell flex items-center"
                   :placeholder="`Enter ${key}`"
-                  @input="updateField(key, ($event.target as HTMLDivElement).textContent || '')"
+                  @input="updateCoreField(key, ($event.target as HTMLDivElement).textContent || '')"
                 ></div>
               </TableCell>
             </TableRow>
             <TableRow v-for="(attribute, index) in visibleAttributes" :key="`attribute-${index}`" class="h-[32px]">
-              <TableCell class="font-medium border-r p-0">
+              <TableCell class="font-medium border-r p-0 w-1/4">
                 <Select :model-value="attribute.type" @update:model-value="(value) => updateAttribute(index, 'type', value)">
                   <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
                     <SelectValue>
@@ -242,7 +243,7 @@ const isVariantInstance = computed(() => productData.value.instance === 'Variant
                   </SelectContent>
                 </Select>
               </TableCell>
-              <TableCell class="p-0">
+              <TableCell class="p-0 w-3/4">
                 <Select 
                   v-if="!isVariantInstance" 
                   :model-value="attribute.value" 
@@ -266,7 +267,7 @@ const isVariantInstance = computed(() => productData.value.instance === 'Variant
                       <Button
                         variant="outline"
                         :class="{'border-primary': selectedValues[index]?.length > 0}"
-                        class="w-full justify-start h-[32px]"
+                        class="w-full justify-start h-[32px] border-0 focus:ring-0 bg-transparent"
                       >
                         {{ selectedValues[index]?.length ? selectedValues[index].join(', ') : 'Select Values' }}
                       </Button>
@@ -297,64 +298,70 @@ const isVariantInstance = computed(() => productData.value.instance === 'Variant
 </template>
 
 <style scoped>
-.notion-table {
+.core-table {
   border-collapse: separate;
   border-spacing: 0;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   overflow: hidden;
+  table-layout: fixed;  /* Add this line to ensure fixed column widths */
+  width: 100%;  /* Ensure the table takes full width */
 }
 
-.notion-table th,
-.notion-table td {
+.core-table td {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.notion-table th:first-child,
-.notion-table td:first-child {
+.core-table td:first-child {
   border-right: 1px solid #e5e7eb;
+  width: 25%;  /* Set the width of the first column (property) to 25% */
 }
 
-.notion-cell {
+.core-table td:last-child {
+  width: 75%;  /* Set the width of the second column (value) to 75% */
+}
+
+.core-cell {
   min-height: 32px;
   line-height: 32px;
 }
 
-.notion-cell:focus {
+.core-cell:focus {
   background-color: #e8f0fe;
 }
 
-[contenteditable]:empty:before {
-  content: attr(placeholder);
-  color: #9ca3af;
-  pointer-events: none;
+/* ... (keep other existing styles) */
+
+/* Remove borders and background from select triggers */
+:deep(.select-trigger) {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
-/* Keep select arrow white for all rows */
-:deep(.select-trigger .lucide-chevron-down) {
-  display: none;
+/* Remove focus ring from select triggers */
+:deep(.select-trigger:focus) {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
-/* Ensure consistent height for all rows */
-.notion-table tr {
-  height: 32px;
+/* Ensure text color consistency */
+:deep(.select-trigger .select-value) {
+  color: inherit;
 }
 
 /* Adjust padding for select triggers */
 :deep(.select-trigger) {
   padding-left: 12px;
   padding-right: 12px;
+  height: 32px;
 }
 
-/* Remove default select styling */
-:deep(.select-trigger) {
-  background-color: transparent;
-  border: none;
-  box-shadow: none;
+/* Hide all chevron icons */
+:deep(.select-trigger .lucide-chevron-down),
+:deep(.popover-trigger .lucide-chevron-down) {
+  display: none;
 }
 
-/* Style placeholder text */
-:deep(.select-value[data-placeholder]) {
-  color: #9ca3af;
-}
+/* ... (keep other existing styles) ... */
 </style>
