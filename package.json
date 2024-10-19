@@ -12,10 +12,13 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.675.0",
+    "@aws-sdk/s3-request-presigner": "^3.675.0",
     "@libsql/client": "^0.5.6",
     "@vueuse/core": "^10.9.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "h3-formidable": "^1.0.0",
     "lucide-vue-next": "^0.358.0",
     "nuxt": "^3.10.3",
     "radix-vue": "^1.5.3",

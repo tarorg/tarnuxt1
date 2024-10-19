@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Upload, Video, X } from 'lucide-vue-next'
 import {
   Select,
   SelectContent,
@@ -24,7 +24,7 @@ const productData = ref({
   options: '1',
 })
 
-const attributes = ref(Array(5).fill({ type: '', value: '' }))
+const attributes = ref(Array(5).fill(null).map(() => ({ type: '', value: '' })))
 
 const categories = ref([])
 const instanceOptions = ['Item', 'Variants', 'Service']
@@ -45,10 +45,14 @@ const updateField = (field: keyof typeof productData.value, value: string) => {
 }
 
 const updateAttribute = (index: number, key: 'type' | 'value', value: string) => {
-  attributes.value[index][key] = value
+  console.log(`Updating attribute ${index}, ${key}: ${value}`)
   if (key === 'type') {
-    attributes.value[index].value = ''
+    attributes.value[index] = { ...attributes.value[index], type: value, value: '' }
+  } else {
+    attributes.value[index] = { ...attributes.value[index], value }
   }
+  attributes.value = [...attributes.value] // Trigger a re-render
+  console.log('Updated attributes:', JSON.stringify(attributes.value))
 }
 
 const changeOptions = (increment: boolean) => {
@@ -68,6 +72,57 @@ const getAttributeValues = (type: string) => {
 const visibleAttributes = computed(() => {
   return attributes.value.slice(0, parseInt(productData.value.options))
 })
+
+const uploadedFiles = ref<{ url: string; type: string }[]>([])
+
+const uploadFile = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/uploadMedia', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      // Ensure the URL is correct
+      const fileUrl = new URL(result.fileUrl).toString()
+      uploadedFiles.value.push({
+        url: fileUrl,
+        type: file.type.startsWith('image/') ? 'image' : 'video',
+      })
+    } else {
+      console.error('Failed to upload file:', result.message, 'Error details:', result.error)
+      // You might want to show an error message to the user here
+    }
+  } catch (error) {
+    console.error('Error uploading file:', error)
+    // You might want to show an error message to the user here
+  }
+}
+
+const removeFile = (index: number) => {
+  uploadedFiles.value.splice(index, 1)
+}
+
+const availableAttributeTypes = computed(() => {
+  const selectedTypes = attributes.value.map(attr => attr.type).filter(Boolean)
+  console.log('Selected types:', selectedTypes)
+  const available = attributeTypes.value.filter(attr => !selectedTypes.includes(attr.Type) || attr.Type === '')
+  console.log('Available types:', available)
+  return available
+})
+
+// Add a watcher for debugging
+watch(attributes, (newValue) => {
+  console.log('Attributes changed:', JSON.stringify(newValue))
+}, { deep: true })
 </script>
 
 <template>
@@ -96,12 +151,12 @@ const visibleAttributes = computed(() => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="(value, key) in productData" :key="key" class="h-8">
+            <TableRow v-for="(value, key) in productData" :key="key" class="h-[32px]">
               <TableCell class="font-medium border-r">{{ key.charAt(0).toUpperCase() + key.slice(1) }}</TableCell>
               <TableCell class="p-0">
                 <template v-if="key === 'category' || key === 'instance'">
                   <Select @update:modelValue="updateField(key, $event)">
-                    <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0">
+                    <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
                       <SelectValue :placeholder="`Select ${key}`" />
                     </SelectTrigger>
                     <SelectContent>
@@ -118,32 +173,49 @@ const visibleAttributes = computed(() => {
                   </Select>
                 </template>
                 <template v-else-if="key === 'options'">
-                  <div
-                    class="w-full h-full px-3 py-1 cursor-pointer notion-cell flex justify-between items-center"
-                  >
-                    <span @click="changeOptions(false)" class="w-1/3 text-center">-</span>
+                  <div class="w-full h-full px-3 flex justify-between items-center">
+                    <span @click="changeOptions(false)" class="w-1/3 text-center cursor-pointer">-</span>
                     <span class="w-1/3 text-center">{{ value }}</span>
-                    <span @click="changeOptions(true)" class="w-1/3 text-center">+</span>
+                    <span @click="changeOptions(true)" class="w-1/3 text-center cursor-pointer">+</span>
+                  </div>
+                </template>
+                <template v-else-if="key === 'medias'">
+                  <div class="flex items-center h-full px-3">
+                    <label class="cursor-pointer">
+                      <input type="file" class="hidden" @change="uploadFile" accept="image/*,video/*" />
+                      <Upload class="h-5 w-5" />
+                    </label>
+                    <div class="flex-1 flex overflow-x-auto ml-2">
+                      <div v-for="(file, index) in uploadedFiles" :key="index" class="relative mr-2">
+                        <img v-if="file.type === 'image'" :src="file.url" class="h-6 w-6 object-cover" />
+                        <Video v-else class="h-6 w-6" />
+                        <button @click="removeFile(index)" class="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
+                          <X class="h-2 w-2 text-white" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </template>
                 <div
                   v-else
                   contenteditable="true"
-                  class="w-full h-full px-3 py-1 focus:outline-none notion-cell"
+                  class="w-full h-full px-3 focus:outline-none notion-cell flex items-center"
                   :placeholder="`Enter ${key}`"
                   @input="updateField(key, ($event.target as HTMLDivElement).textContent || '')"
                 ></div>
               </TableCell>
             </TableRow>
-            <TableRow v-for="(attribute, index) in visibleAttributes" :key="`attribute-${index}`" class="h-8">
+            <TableRow v-for="(attribute, index) in visibleAttributes" :key="`attribute-${index}`" class="h-[32px]">
               <TableCell class="font-medium border-r p-0">
-                <Select @update:modelValue="updateAttribute(index, 'type', $event)">
-                  <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0">
-                    <SelectValue placeholder="Select Type" />
+                <Select :model-value="attribute.type" @update:model-value="(value) => updateAttribute(index, 'type', value)">
+                  <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
+                    <SelectValue>
+                      {{ attribute.type || 'Select Type' }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem v-for="attr in attributeTypes" :key="attr.Type" :value="attr.Type">
+                      <SelectItem v-for="attr in availableAttributeTypes" :key="attr.Type" :value="attr.Type">
                         {{ attr.Type }}
                       </SelectItem>
                     </SelectGroup>
@@ -151,9 +223,9 @@ const visibleAttributes = computed(() => {
                 </Select>
               </TableCell>
               <TableCell class="p-0">
-                <Select @update:modelValue="updateAttribute(index, 'value', $event)" :disabled="!attribute.type">
-                  <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0">
-                    <SelectValue placeholder="Select Value" />
+                <Select :model-value="attribute.value" @update:model-value="(value) => updateAttribute(index, 'value', value)" :disabled="!attribute.type">
+                  <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
+                    <SelectValue :placeholder="attribute.value || 'Select Value'" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -184,7 +256,6 @@ const visibleAttributes = computed(() => {
 .notion-table th,
 .notion-table td {
   border-bottom: 1px solid #e5e7eb;
-  height: 32px;
 }
 
 .notion-table th:first-child,
@@ -195,7 +266,6 @@ const visibleAttributes = computed(() => {
 .notion-cell {
   min-height: 32px;
   line-height: 32px;
-  cursor: text;
 }
 
 .notion-cell:focus {
@@ -208,15 +278,31 @@ const visibleAttributes = computed(() => {
   pointer-events: none;
 }
 
-.notion-table td {
-  padding: 0;
+/* Keep select arrow white for all rows */
+:deep(.select-trigger .lucide-chevron-down) {
+  display: none;
 }
 
-/* Ensure Select component fits within the 32px height */
-:deep(.select-trigger) {
+/* Ensure consistent height for all rows */
+.notion-table tr {
   height: 32px;
-  min-height: 32px;
-  padding-top: 0;
-  padding-bottom: 0;
+}
+
+/* Adjust padding for select triggers */
+:deep(.select-trigger) {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* Remove default select styling */
+:deep(.select-trigger) {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Style placeholder text */
+:deep(.select-value[data-placeholder]) {
+  color: #9ca3af;
 }
 </style>
