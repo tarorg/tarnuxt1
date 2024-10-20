@@ -122,35 +122,42 @@ const uploadFile = async (event: Event) => {
     const formData = new FormData()
     formData.append('file', file)
 
-            console.log('Sending request to /api/uploadMedia')
-            const response = await fetch('/api/uploadMedia', {
-              method: 'POST',
-              body: formData,
-            })
+    console.log('Sending request to /api/uploadMedia')
+    const response = await fetch('/api/uploadMedia', {
+      method: 'POST',
+      body: formData,
+    })
 
-            console.log('Response received:', response.status, response.statusText)
-            const result = await response.json()
-            console.log('Response body:', result)
+    console.log('Response received:', response.status, response.statusText)
+    const responseText = await response.text()
+    console.log('Raw response:', responseText)
 
-            if (result.success) {
-              console.log('File upload successful')
-              // Ensure the URL is correct
-              const fileUrl = new URL(result.fileUrl).toString()
-              uploadedFiles.value.push({
-                url: fileUrl,
-                type: file.type.startsWith('image/') ? 'image' : 'video',
-              })
-              console.log('Added file to uploadedFiles:', fileUrl)
-            } else {
-              console.error('Failed to upload file:', result.message, 'Error details:', result.error)
-              // You might want to show an error message to the user here
-              alert(`Failed to upload file: ${result.message}`)
-            }
-          } catch (error) {
-            console.error('Error in uploadFile function:', error)
-            // You might want to show an error message to the user here
-            alert(`Error uploading file: ${error instanceof Error ? error.message : String(error)}`)
-          }
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError)
+      throw new Error('Invalid JSON response from server')
+    }
+
+    console.log('Parsed response body:', result)
+
+    if (result.success) {
+      console.log('File upload successful')
+      const fileUrl = new URL(result.fileUrl).toString()
+      uploadedFiles.value.push({
+        url: fileUrl,
+        type: file.type.startsWith('image/') ? 'image' : 'video',
+      })
+      console.log('Added file to uploadedFiles:', fileUrl)
+    } else {
+      console.error('Failed to upload file:', result.message, 'Error details:', result.error)
+      alert(`Failed to upload file: ${result.message}`)
+    }
+  } catch (error) {
+    console.error('Error in uploadFile function:', error)
+    alert(`Error uploading file: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 const removeFile = (index: number) => {
