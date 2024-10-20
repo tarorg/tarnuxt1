@@ -118,31 +118,39 @@ const uploadFile = async (event: Event) => {
   if (!file) return
 
   try {
+    console.log('Starting file upload process')
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch('/api/uploadMedia', {
-      method: 'POST',
-      body: formData,
-    })
+            console.log('Sending request to /api/uploadMedia')
+            const response = await fetch('/api/uploadMedia', {
+              method: 'POST',
+              body: formData,
+            })
 
-    const result = await response.json()
+            console.log('Response received:', response.status, response.statusText)
+            const result = await response.json()
+            console.log('Response body:', result)
 
-    if (result.success) {
-      // Ensure the URL is correct
-      const fileUrl = new URL(result.fileUrl).toString()
-      uploadedFiles.value.push({
-        url: fileUrl,
-        type: file.type.startsWith('image/') ? 'image' : 'video',
-      })
-    } else {
-      console.error('Failed to upload file:', result.message, 'Error details:', result.error)
-      // You might want to show an error message to the user here
-    }
-  } catch (error) {
-    console.error('Error uploading file:', error)
-    // You might want to show an error message to the user here
-  }
+            if (result.success) {
+              console.log('File upload successful')
+              // Ensure the URL is correct
+              const fileUrl = new URL(result.fileUrl).toString()
+              uploadedFiles.value.push({
+                url: fileUrl,
+                type: file.type.startsWith('image/') ? 'image' : 'video',
+              })
+              console.log('Added file to uploadedFiles:', fileUrl)
+            } else {
+              console.error('Failed to upload file:', result.message, 'Error details:', result.error)
+              // You might want to show an error message to the user here
+              alert(`Failed to upload file: ${result.message}`)
+            }
+          } catch (error) {
+            console.error('Error in uploadFile function:', error)
+            // You might want to show an error message to the user here
+            alert(`Error uploading file: ${error instanceof Error ? error.message : String(error)}`)
+          }
 }
 
 const removeFile = (index: number) => {
@@ -654,3 +662,4 @@ const saveProduct = async () => {
 
 /* ... (keep other existing styles) */
 </style>
+
