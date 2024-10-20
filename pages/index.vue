@@ -40,7 +40,7 @@ const menuItems = [
   { icon: User, label: 'Profile' },
   { icon: CreditCard, label: 'Billing' },
   { icon: Settings, label: 'Settings' },
-  { icon: LayoutDashboard, label: 'Dashboard', link: '/' },
+  { icon: LayoutDashboard, label: 'Home', link: '/' },
   { icon: ShoppingCart, label: 'Orders', link: '/orders' },
   { icon: Package, label: 'Products', link: '/products' },
   { icon: Users, label: 'Customers', link: '/customers' },

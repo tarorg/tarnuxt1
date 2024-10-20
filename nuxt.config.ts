@@ -34,7 +34,17 @@ export default defineNuxtConfig({
       publicCustomDomain: process.env.PUBLIC_R2_CUSTOM_DOMAIN,
       endpoint: process.env.R2_ENDPOINT,
     },
+    tursoDbUrl: process.env.TURSO_DB_URL,
+    tursoAuthToken: process.env.TURSO_AUTH_TOKEN,
   },
 
   compatibilityDate: '2024-10-19',
+  nitro: {
+    routeRules: {
+      '/api/**': { 
+        cors: true, 
+        headers: { 'access-control-allow-methods': 'GET,HEAD,PUT,PATCH,POST,DELETE' } 
+      }
+    }
+  },
 })

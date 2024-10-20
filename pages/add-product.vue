@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer'
 import { ref as vueRef } from 'vue'
+import unitsData from '@/public/units.json'
 
 const goBack = () => {
   navigateTo('/products')
@@ -27,6 +28,7 @@ const coreProductData = ref({
   category: '',
   medias: '',
   instance: '',
+  unit: '', // Add this new field
   options: '1',
 })
 
@@ -53,11 +55,15 @@ const resetAttributesAndInstances = () => {
   coreProductData.value.options = '1'
 }
 
-const updateCoreField = (field: keyof typeof coreProductData.value, value: string) => {
+const updateCoreField = (field: keyof typeof coreProductData.value, value: string | { value: string; label: string }) => {
   if (field === 'instance' && value !== coreProductData.value.instance) {
     resetAttributesAndInstances()
   }
-  coreProductData.value[field] = value
+  if (field === 'category' && typeof value === 'object') {
+    coreProductData.value[field] = value.value
+  } else {
+    coreProductData.value[field] = value as string
+  }
 }
 
 const selectedValues = ref<{ [key: number]: string[] }>({})
@@ -256,6 +262,72 @@ const removeMedia = async (fileToRemove) => {
     // You might want to show an error message to the user here
   }
 }
+
+// Add this new computed property
+const flattenedUnits = computed(() => {
+  return unitsData.flatMap(category => category.units)
+})
+
+// Add this new function to save the product data
+const saveProduct = async () => {
+  try {
+    // Sanitize the media URLs
+    const sanitizedMedias = uploadedFiles.value
+      .map(file => file.url.trim()) // Trim any whitespace
+      .filter(url => {
+        try {
+          new URL(url); // This will throw an error if the URL is invalid
+          return true;
+        } catch {
+          console.warn(`Invalid URL skipped: ${url}`);
+          return false;
+        }
+      })
+      .join(',');
+
+    const productData = {
+      name: coreProductData.value.name,
+      category: coreProductData.value.category,
+      medias: sanitizedMedias,
+      instance: coreProductData.value.instance,
+      options: parseInt(coreProductData.value.options),
+      options1: attributes.value[0].value,
+      options2: attributes.value[1].value,
+      options3: attributes.value[2].value,
+      options4: attributes.value[3].value,
+      options5: attributes.value[4].value,
+      notes: "note",
+      unit: coreProductData.value.unit,
+      storeid: "store"
+    }
+
+    console.log('Product data to be inserted:')
+    Object.entries(productData).forEach(([key, value]) => {
+      console.log(`${key}: ${value}`)
+    })
+
+    const response = await fetch('/api/saveProduct', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(productData),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      console.error('Server response:', result)
+      throw new Error(result.message || 'Failed to save product')
+    }
+
+    console.log('Product saved successfully:', result)
+    navigateTo('/products')
+  } catch (error) {
+    console.error('Error saving product:', error)
+    // You might want to show an error message to the user here
+  }
+}
 </script>
 
 <template>
@@ -273,7 +345,7 @@ const removeMedia = async (fileToRemove) => {
           <X class="h-5 w-5" />
           <span class="sr-only">Cancel</span>
         </Button>
-        <Button variant="ghost" size="icon">
+        <Button @click="saveProduct" variant="ghost" size="icon">
           <Save class="h-5 w-5" />
           <span class="sr-only">Save Product</span>
         </Button>
@@ -287,7 +359,7 @@ const removeMedia = async (fileToRemove) => {
             <TableRow v-for="(value, key) in coreProductData" :key="key" class="h-[32px]">
               <TableCell class="font-medium border-r w-1/4">{{ key.charAt(0).toUpperCase() + key.slice(1) }}</TableCell>
               <TableCell class="p-0 w-3/4">
-                <template v-if="key === 'category' || key === 'instance'">
+                <template v-if="key === 'category'">
                   <Select @update:modelValue="updateCoreField(key, $event)">
                     <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
                       <SelectValue :placeholder="`Select ${key}`" />
@@ -295,11 +367,29 @@ const removeMedia = async (fileToRemove) => {
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem 
-                          v-for="option in (key === 'category' ? categories : instanceOptions)" 
-                          :key="key === 'category' ? option.value : option" 
-                          :value="key === 'category' ? option.value : option"
+                          v-for="option in categories" 
+                          :key="option.value" 
+                          :value="option"
                         >
-                          {{ key === 'category' ? option.label : option }}
+                          {{ option.label }}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </template>
+                <template v-else-if="key === 'instance' || key === 'unit'">
+                  <Select @update:modelValue="updateCoreField(key, $event)">
+                    <SelectTrigger class="w-full h-[32px] border-0 focus:ring-0 bg-transparent">
+                      <SelectValue :placeholder="`Select ${key}`" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem 
+                          v-for="option in (key === 'instance' ? instanceOptions : flattenedUnits)" 
+                          :key="option" 
+                          :value="option"
+                        >
+                          {{ option }}
                         </SelectItem>
                       </SelectGroup>
                     </SelectContent>
