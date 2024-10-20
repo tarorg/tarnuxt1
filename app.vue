@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { IonApp } from '@ionic/vue';
 </script>
 
 <template>
-  <div>
+  <ion-app>
     <NuxtPage />
-  </div>
+  </ion-app>
 </template>
-

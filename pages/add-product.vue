@@ -17,6 +17,22 @@ import { Input } from '@/components/ui/input'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer'
 import { ref as vueRef } from 'vue'
 import unitsData from '@/public/units.json'
+import { Capacitor } from '@capacitor/core'
+
+interface AttributeType {
+  Type: string;
+  values: string[];
+}
+
+interface Category {
+  value: string;
+  label: string;
+}
+
+interface MediaFile {
+  url: string;
+  type: 'image' | 'video';
+}
 
 const goBack = () => {
   navigateTo('/products')
@@ -34,9 +50,9 @@ const coreProductData = ref({
 
 const attributes = ref(Array(5).fill(null).map(() => ({ type: '', value: '' })))
 
-const categories = ref([])
+const categories = ref<Category[]>([])
 const instanceOptions = ['Item', 'Variants', 'Service']
-const attributeTypes = ref([])
+const attributeTypes = ref<AttributeType[]>([])
 
 onMounted(async () => {
   const [categoryResponse, attributeResponse] = await Promise.all([
@@ -111,7 +127,7 @@ const visibleAttributes = computed(() => {
   return attributes.value.slice(0, parseInt(coreProductData.value.options))
 })
 
-const uploadedFiles = ref<{ url: string; type: string }[]>([])
+const uploadedFiles = ref<MediaFile[]>([])
 
 const uploadFile = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -236,10 +252,10 @@ const totalCombinations = computed(() => {
     .reduce((total, attr) => total * attr.value.split(', ').length, 1)
 })
 
-const selectedMedia = vueRef(null)
+const selectedMedia = vueRef<MediaFile | null>(null)
 const isDrawerOpen = vueRef(false)
 
-const openMediaDrawer = (file) => {
+const openMediaDrawer = (file: MediaFile) => {
   selectedMedia.value = file
   isDrawerOpen.value = true
 }
@@ -249,7 +265,9 @@ const closeMediaDrawer = () => {
   isDrawerOpen.value = false
 }
 
-const removeMedia = async (fileToRemove) => {
+const removeMedia = async (fileToRemove: MediaFile | null) => {
+  if (!fileToRemove) return;
+
   try {
     console.log('Attempting to remove file:', fileToRemove.url)
     const response = await fetch('/api/removeMedia', {
@@ -270,11 +288,11 @@ const removeMedia = async (fileToRemove) => {
       closeMediaDrawer()
     } else {
       console.error('Failed to remove file from Cloudflare R2:', result.message, 'Error details:', result.error)
-      // You might want to show an error message to the user here
+      alert(`Failed to remove file: ${result.message}`)
     }
   } catch (error) {
     console.error('Error removing file:', error)
-    // You might want to show an error message to the user here
+    alert(`Error removing file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -288,10 +306,10 @@ const saveProduct = async () => {
   try {
     // Sanitize the media URLs
     const sanitizedMedias = uploadedFiles.value
-      .map(file => file.url.trim()) // Trim any whitespace
+      .map(file => file.url.trim())
       .filter(url => {
         try {
-          new URL(url); // This will throw an error if the URL is invalid
+          new URL(url);
           return true;
         } catch {
           console.warn(`Invalid URL skipped: ${url}`);
@@ -321,7 +339,10 @@ const saveProduct = async () => {
       console.log(`${key}: ${value}`)
     })
 
-    const response = await fetch('/api/saveProduct', {
+    // Use the Cloudflare Worker URL for both native and web environments
+    const apiUrl = 'https://upcom1.wetarteam.workers.dev/';
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -329,7 +350,18 @@ const saveProduct = async () => {
       body: JSON.stringify(productData),
     })
 
-    const result = await response.json()
+    // Read the response text once
+    const responseText = await response.text()
+    console.log('Raw response:', responseText)
+
+    // Try to parse the response as JSON
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError)
+      throw new Error('Invalid JSON response from server')
+    }
 
     if (!response.ok) {
       console.error('Server response:', result)
@@ -340,7 +372,8 @@ const saveProduct = async () => {
     navigateTo('/products')
   } catch (error) {
     console.error('Error saving product:', error)
-    // You might want to show an error message to the user here
+    // Show an error message to the user
+    alert(`Error saving product: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 </script>
@@ -384,7 +417,7 @@ const saveProduct = async () => {
                         <SelectItem 
                           v-for="option in categories" 
                           :key="option.value" 
-                          :value="option"
+                          :value="option.value"
                         >
                           {{ option.label }}
                         </SelectItem>
@@ -669,4 +702,8 @@ const saveProduct = async () => {
 
 /* ... (keep other existing styles) */
 </style>
+
+
+
+
 
