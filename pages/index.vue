@@ -30,6 +30,7 @@ import {
   Triangle,
   User,
   Users,
+  Layers,
 } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 
@@ -42,6 +43,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Home', link: '/' },
   { icon: ShoppingCart, label: 'Orders', link: '/orders' },
   { icon: Package, label: 'Products', link: '/products' },
+  { icon: Layers, label: 'Instances', link: '/instances' }, // Add this line
   { icon: Users, label: 'Customers', link: '/customers' },
   { icon: BarChart, label: 'Analytics', link: '/analytics' },
 ]
@@ -437,3 +439,4 @@ html, body, #__nuxt, #__layout {
   font-size: 20px;
 }
 </style>
+

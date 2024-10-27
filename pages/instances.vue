@@ -21,19 +21,19 @@ import {
   ShoppingCart,
   Users,
   BarChart,
+  Layers,
   Plus,
   ChevronLeft,
   ChevronRight,
-  Layers,
 } from 'lucide-vue-next'
 
-interface Product {
+interface Instance {
   id: number;
-  name: string;
-  category: string;
+  sku: string;
+  stock: number;
 }
 
-const products = ref<Product[]>([])
+const instances = ref<Instance[]>([])
 const menuSearchQuery = ref('')
 const error = ref<string | null>(null)
 const search = ref("")
@@ -59,13 +59,13 @@ const filteredMenuItems = computed(() => {
 })
 
 const columns = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "category", header: "Category" },
+  { accessorKey: "sku", header: "SKU" },
+  { accessorKey: "stock", header: "Stock" },
 ];
 
 const filteredData = computed(() => {
-  if (!search.value) return products.value
-  return products.value.filter(item => 
+  if (!search.value) return instances.value
+  return instances.value.filter(item => 
     Object.values(item).some(val => 
       val.toString().toLowerCase().includes(search.value.toLowerCase())
     )
@@ -87,7 +87,7 @@ const prevPage = () => {
   if (currentPage.value > 1) currentPage.value--
 }
 
-const fetchProducts = async () => {
+const fetchInstances = async () => {
   const url = "https://commerce-tarframework.turso.io/v2/pipeline";
   const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
 
@@ -100,7 +100,7 @@ const fetchProducts = async () => {
       },
       body: JSON.stringify({
         requests: [
-          { type: "execute", stmt: { sql: "SELECT id, name, category FROM core" } },
+          { type: "execute", stmt: { sql: "SELECT id, sku, stock FROM Instances" } },
           { type: "close" },
         ],
       }),
@@ -113,25 +113,21 @@ const fetchProducts = async () => {
     const data = await response.json();
 
     if (data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows) {
-      products.value = data.results[0].response.result.rows.map((row: any[]) => ({
+      instances.value = data.results[0].response.result.rows.map((row: any[]) => ({
         id: parseInt(row[0].value) || 0,
-        name: row[1].value || 'Unknown',
-        category: row[2].value || 'Unknown',
+        sku: row[1].value || 'Unknown',
+        stock: parseInt(row[2].value) || 0,
       }));
     } else {
       throw new Error('Unexpected API response structure');
     }
   } catch (e) {
-    console.error('Error fetching products:', e);
+    console.error('Error fetching instances:', e);
     error.value = e instanceof Error ? e.message : 'An unknown error occurred';
   }
 }
 
-onMounted(fetchProducts);
-
-const navigateToAddProduct = () => {
-  navigateTo('/add-product')
-}
+onMounted(fetchInstances);
 </script>
 
 <template>
@@ -193,15 +189,6 @@ const navigateToAddProduct = () => {
           placeholder="Search" 
           class="w-full md:w-96 p-2 border rounded bg-white"
         />
-        <Button 
-          variant="ghost"
-          size="icon"
-          class="ml-2"
-          @click="navigateToAddProduct"
-        >
-          <Plus class="h-5 w-5" />
-          <span class="sr-only">Add Product</span>
-        </Button>
       </div>
 
       <table class="w-full mt-5 rounded-md border">
@@ -215,7 +202,7 @@ const navigateToAddProduct = () => {
         <tbody>
           <tr v-for="item in paginatedData" :key="item.id" class="border-t">
             <td v-for="column in columns" :key="column.accessorKey" class="p-2">
-              {{ item[column.accessorKey as keyof Product] }}
+              {{ item[column.accessorKey as keyof Instance] }}
             </td>
           </tr>
         </tbody>
@@ -244,7 +231,3 @@ const navigateToAddProduct = () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Add any additional styles here if needed */
-</style>
