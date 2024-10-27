@@ -33,7 +33,6 @@ import {
 } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 
-const searchQuery = ref('')
 const menuSearchQuery = ref('')
 
 const menuItems = [
@@ -92,16 +91,7 @@ const filteredMenuItems = computed(() => {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <form class="flex-1 mx-2">
-          <div class="relative w-full">
-            <Input
-              v-model="searchQuery"
-              type="search"
-              placeholder="Search products..."
-              class="w-full"
-            />
-          </div>
-        </form>
+        <div class="flex-1"></div>
         <div class="flex items-center">
           <Button variant="ghost" size="icon" class="rounded-full">
             <Triangle class="h-5 w-5" />

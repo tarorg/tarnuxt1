@@ -22,6 +22,8 @@ import {
   Users,
   BarChart,
   Plus,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 
 interface Product {
@@ -31,10 +33,11 @@ interface Product {
 }
 
 const products = ref<Product[]>([])
-const searchQuery = ref('')
 const menuSearchQuery = ref('')
 const error = ref<string | null>(null)
 const search = ref("")
+const currentPage = ref(1)
+const itemsPerPage = 10
 
 const menuItems = [
   { icon: User, label: 'Profile' },
@@ -66,6 +69,17 @@ const filteredData = computed(() => {
     )
   )
 })
+
+const paginatedData = computed(() => {
+  const startIndex = (currentPage.value - 1) * itemsPerPage
+  return filteredData.value.slice(startIndex, startIndex + itemsPerPage)
+})
+
+const totalPages = computed(() => Math.ceil(filteredData.value.length / itemsPerPage))
+
+const goToPage = (page: number) => {
+  currentPage.value = page
+}
 
 const fetchProducts = async () => {
   const url = "https://commerce-tarframework.turso.io/v2/pipeline";
@@ -151,16 +165,7 @@ const navigateToAddProduct = () => {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <form class="flex-1 mx-2" @submit.prevent>
-          <div class="relative w-full">
-            <Input
-              v-model="searchQuery"
-              type="search"
-              placeholder="Search products..."
-              class="w-full"
-            />
-          </div>
-        </form>
+        <div class="flex-1"></div>
         <div class="flex items-center">
           <Button variant="ghost" size="icon" class="rounded-full">
             <Triangle class="h-5 w-5" />
@@ -175,37 +180,70 @@ const navigateToAddProduct = () => {
     </header>
 
     <div class="h-full flex-1 flex-col space-y-8 p-8">
-      <div class="flex justify-end items-center">
+      <div class="flex justify-between items-center">
+        <input 
+          type="search" 
+          v-model="search" 
+          placeholder="Search" 
+          class="w-full md:w-96 p-2 border rounded bg-white"
+        />
         <Button 
-          class="bg-white text-black border border-gray-300 hover:bg-gray-100"
+          variant="ghost"
+          size="icon"
+          class="ml-2"
           @click="navigateToAddProduct"
         >
-          <Plus class="mr-2 h-4 w-4" /> Add Product
+          <Plus class="h-5 w-5" />
+          <span class="sr-only">Add Product</span>
         </Button>
       </div>
 
-      <div class="p-6">
-        <div class="flex flex-col justify-between gap-5 md:flex-row md:items-center mb-4">
-          <input type="search" v-model="search" placeholder="Search" class="w-full md:w-96 p-2 border rounded" />
-        </div>
+      <table class="w-full mt-5 rounded-md border">
+        <thead>
+          <tr>
+            <th v-for="column in columns" :key="column.accessorKey" class="p-2 text-left bg-white font-semibold">
+              {{ column.header }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in paginatedData" :key="item.id" class="border-t">
+            <td v-for="column in columns" :key="column.accessorKey" class="p-2">
+              {{ item[column.accessorKey as keyof Product] }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-        <table class="w-full mt-5 rounded-md border">
-          <thead>
-            <tr>
-              <th v-for="column in columns" :key="column.accessorKey" class="p-2 text-left bg-white font-semibold">
-                {{ column.header }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in filteredData" :key="item.id" class="border-t">
-              <td v-for="column in columns" :key="column.accessorKey" class="p-2">
-                {{ item[column.accessorKey] }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Pagination -->
+      <div class="flex justify-between items-center mt-4">
+        <div>
+          Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, filteredData.length) }} of {{ filteredData.length }} entries
+        </div>
+        <div class="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            @click="goToPage(currentPage - 1)" 
+            :disabled="currentPage === 1"
+          >
+            <ChevronLeft class="h-4 w-4" />
+          </Button>
+          <span>Page {{ currentPage }} of {{ totalPages }}</span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            @click="goToPage(currentPage + 1)" 
+            :disabled="currentPage === totalPages"
+          >
+            <ChevronRight class="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Add any additional styles here if needed */
+</style>
