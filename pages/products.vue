@@ -77,8 +77,12 @@ const paginatedData = computed(() => {
 
 const totalPages = computed(() => Math.ceil(filteredData.value.length / itemsPerPage))
 
-const goToPage = (page: number) => {
-  currentPage.value = page
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value++
+}
+
+const prevPage = () => {
+  if (currentPage.value > 1) currentPage.value--
 }
 
 const fetchProducts = async () => {
@@ -215,30 +219,25 @@ const navigateToAddProduct = () => {
         </tbody>
       </table>
 
-      <!-- Pagination -->
-      <div class="flex justify-between items-center mt-4">
-        <div>
-          Showing {{ (currentPage - 1) * itemsPerPage + 1 }} to {{ Math.min(currentPage * itemsPerPage, filteredData.length) }} of {{ filteredData.length }} entries
-        </div>
-        <div class="flex items-center space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            @click="goToPage(currentPage - 1)" 
-            :disabled="currentPage === 1"
-          >
-            <ChevronLeft class="h-4 w-4" />
-          </Button>
-          <span>Page {{ currentPage }} of {{ totalPages }}</span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            @click="goToPage(currentPage + 1)" 
-            :disabled="currentPage === totalPages"
-          >
-            <ChevronRight class="h-4 w-4" />
-          </Button>
-        </div>
+      <!-- Minimal Pagination -->
+      <div class="flex justify-center items-center mt-4 space-x-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          @click="prevPage" 
+          :disabled="currentPage === 1"
+        >
+          Previous
+        </Button>
+        <span>Page {{ currentPage }} of {{ totalPages }}</span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          @click="nextPage" 
+          :disabled="currentPage === totalPages"
+        >
+          Next
+        </Button>
       </div>
     </div>
   </div>
