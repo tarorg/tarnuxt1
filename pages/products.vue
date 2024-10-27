@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,16 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer'
 import {
   Package,
   Square,
@@ -33,17 +22,19 @@ import {
   Users,
   BarChart,
   Plus,
-  Minus,
 } from 'lucide-vue-next'
 
-const products = ref([])
+interface Product {
+  id: number;
+  name: string;
+  category: string;
+}
+
+const products = ref<Product[]>([])
 const searchQuery = ref('')
 const menuSearchQuery = ref('')
-const selectedProduct = ref(null)
-const newStock = ref(0)
-const isUpdating = ref(false)
-const errorMessage = ref('')
-const isDrawerOpen = ref(false)
+const error = ref<string | null>(null)
+const search = ref("")
 
 const menuItems = [
   { icon: User, label: 'Profile' },
@@ -62,74 +53,61 @@ const filteredMenuItems = computed(() => {
   )
 })
 
-const filteredProducts = computed(() => {
-  if (!searchQuery.value) return products.value
-  const query = searchQuery.value.toLowerCase()
-  return products.value.filter(product => 
-    product.sku.toLowerCase().includes(query) || 
-    product.qty.toString().includes(query)
+const columns = [
+  { accessorKey: "name", header: "Name" },
+  { accessorKey: "category", header: "Category" },
+];
+
+const filteredData = computed(() => {
+  if (!search.value) return products.value
+  return products.value.filter(item => 
+    Object.values(item).some(val => 
+      val.toString().toLowerCase().includes(search.value.toLowerCase())
+    )
   )
 })
 
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/products')
-    const data = await response.json()
-    products.value = data.data.items
-  } catch (error) {
-    console.error('Error fetching products:', error)
-  }
-})
-
-const openUpdateStockDrawer = (product) => {
-  selectedProduct.value = product
-  newStock.value = product.qty
-  isDrawerOpen.value = true
-}
-
-const updateStock = async () => {
-  if (!selectedProduct.value) return
-
-  isUpdating.value = true
-  errorMessage.value = ''
+const fetchProducts = async () => {
+  const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+  const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
 
   try {
-    const response = await fetch('/api/updateStock', {
-      method: 'POST',
+    const response = await fetch(url, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        sku: selectedProduct.value.sku,
-        newStock: Number(newStock.value),
+        requests: [
+          { type: "execute", stmt: { sql: "SELECT id, name, category FROM core" } },
+          { type: "close" },
+        ],
       }),
-    })
+    });
 
-    const result = await response.json()
-
-    if (result.success) {
-      selectedProduct.value.qty = newStock.value
-      // Update the product in the products array
-      const index = products.value.findIndex(p => p.sku === selectedProduct.value.sku)
-      if (index !== -1) {
-        products.value[index] = { ...selectedProduct.value }
-      }
-      // Close the drawer after successful update
-      isDrawerOpen.value = false
-    } else {
-      console.error('Failed to update stock:', result.message)
-      errorMessage.value = result.message || 'Failed to update stock'
-      if (result.error) {
-        console.error('Error details:', result.error)
-      }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  } catch (error: any) {
-    console.error('Error updating stock:', error)
-    errorMessage.value = error.message || 'An unexpected error occurred'
-  } finally {
-    isUpdating.value = false
+
+    const data = await response.json();
+
+    if (data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows) {
+      products.value = data.results[0].response.result.rows.map((row: any[]) => ({
+        id: parseInt(row[0].value) || 0,
+        name: row[1].value || 'Unknown',
+        category: row[2].value || 'Unknown',
+      }));
+    } else {
+      throw new Error('Unexpected API response structure');
+    }
+  } catch (e) {
+    console.error('Error fetching products:', e);
+    error.value = e instanceof Error ? e.message : 'An unknown error occurred';
   }
 }
+
+onMounted(fetchProducts);
 
 const navigateToAddProduct = () => {
   navigateTo('/add-product')
@@ -205,79 +183,29 @@ const navigateToAddProduct = () => {
           <Plus class="mr-2 h-4 w-4" /> Add Product
         </Button>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>SKU</TableHead>
-            <TableHead>Stock</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="product in filteredProducts" :key="product.id">
-            <TableCell>{{ product.sku }}</TableCell>
-            <TableCell>{{ product.qty }}</TableCell>
-            <TableCell>
-              <Drawer v-model:open="isDrawerOpen">
-                <DrawerTrigger as-child>
-                  <Button variant="outline" size="sm" @click="openUpdateStockDrawer(product)">
-                    Update Stock
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                  <div class="mx-auto w-full max-w-sm">
-                    <DrawerHeader>
-                      <DrawerTitle>Update Stock</DrawerTitle>
-                      <DrawerDescription>Adjust the stock quantity for {{ selectedProduct?.sku }}</DrawerDescription>
-                    </DrawerHeader>
-                    <div class="p-4 pb-0">
-                      <div class="flex items-center justify-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0 rounded-full"
-                          @click="newStock--"
-                        >
-                          <Minus class="h-4 w-4" />
-                          <span class="sr-only">Decrease</span>
-                        </Button>
-                        <div class="flex-1 text-center">
-                          <div class="text-7xl font-bold tracking-tighter">
-                            {{ newStock }}
-                          </div>
-                          <div class="text-[0.70rem] uppercase text-muted-foreground">
-                            Current Stock
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0 rounded-full"
-                          @click="newStock++"
-                        >
-                          <Plus class="h-4 w-4" />
-                          <span class="sr-only">Increase</span>
-                        </Button>
-                      </div>
-                    </div>
-                    <DrawerFooter>
-                      <Button @click="updateStock" :disabled="isUpdating">
-                        {{ isUpdating ? 'Updating...' : 'Update Stock' }}
-                      </Button>
-                      <DrawerClose as-child>
-                        <Button variant="outline">
-                          Cancel
-                        </Button>
-                      </DrawerClose>
-                      <p v-if="errorMessage" class="text-red-500 mt-2">{{ errorMessage }}</p>
-                    </DrawerFooter>
-                  </div>
-                </DrawerContent>
-              </Drawer>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+
+      <div class="p-6">
+        <div class="flex flex-col justify-between gap-5 md:flex-row md:items-center mb-4">
+          <input type="search" v-model="search" placeholder="Search" class="w-full md:w-96 p-2 border rounded" />
+        </div>
+
+        <table class="w-full mt-5 rounded-md border">
+          <thead>
+            <tr>
+              <th v-for="column in columns" :key="column.accessorKey" class="p-2 text-left bg-white font-semibold">
+                {{ column.header }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in filteredData" :key="item.id" class="border-t">
+              <td v-for="column in columns" :key="column.accessorKey" class="p-2">
+                {{ item[column.accessorKey] }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
